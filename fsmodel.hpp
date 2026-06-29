@@ -4,6 +4,8 @@
 #include <QMap>
 
 namespace model {
+  constexpr int SIZE_COLUMN = 1;
+  
   class ExtendedFileSystemModel : public QFileSystemModel {
     Q_OBJECT
   public:

@@ -1,4 +1,8 @@
+#include <cstdio>
+#include <iostream>
+
 #include <QLocale>
+#include <QDebug>
 
 #include "fsmodel.hpp"
 
@@ -9,18 +13,20 @@ namespace model {
   ExtendedFileSystemModel::~ExtendedFileSystemModel() {}
 
   QVariant ExtendedFileSystemModel::data(const QModelIndex &index, int role) const {
-    if(role == Qt::DisplayRole && index.column() == 1) {
-      QString path = filePath(index);
+    if(role == Qt::DisplayRole && index.column() == SIZE_COLUMN) {
+      QString path = QDir::cleanPath(filePath(index));
       QFileInfo info(path);
 
       if (info.isDir()) {
-        if (!size_cache.contains(path)) {
+        
+        if (size_cache.contains(path)) {
           qint64 size = size_cache[path];
 
           return size >= 0 ? QLocale().formattedDataSize(size) : QString("-");
         }
 
-        return QString("fart");
+        // fallback
+        return QString("-");
       } else 
         return QFileSystemModel::data(index, role);
     }
@@ -33,15 +39,16 @@ namespace model {
     if (!index.isValid())
       return;
 
-    QString path = filePath(index);
+    QString path = QDir::cleanPath(filePath(index));
     QFileInfo info(path);
 
     if (info.isDir()) {
       qint64 size = dirSize(path);
       size_cache[path] = size;
 
+
       // emitting the size changed signal for the view
-      QModelIndex size_index = index.sibling(index.row(), 1);
+      QModelIndex size_index = index.sibling(index.row(), SIZE_COLUMN);
       emit dataChanged(size_index, size_index, {Qt::DisplayRole});
     }
   }

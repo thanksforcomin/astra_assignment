@@ -56,56 +56,92 @@
 #include <QTreeView>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QWidget>
 
 #include "fsmodel.hpp"
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
+  QApplication app(argc, argv);
+  
+  QCoreApplication::setApplicationVersion(QT_VERSION_STR);
+  QCommandLineParser parser;
+  parser.setApplicationDescription("Qt Dir View Example");
+  parser.addHelpOption();
+  parser.addVersionOption();
+  QCommandLineOption dontUseCustomDirectoryIconsOption("c", "Set QFileSystemModel::DontUseCustomDirectoryIcons");
+  parser.addOption(dontUseCustomDirectoryIconsOption);
+  QCommandLineOption dontWatchOption("w", "Set QFileSystemModel::DontWatch");
+  parser.addOption(dontWatchOption);
+  parser.addPositionalArgument("directory", "The directory to start in.");
+  parser.process(app);
+  
+  const QString rootPath = parser.positionalArguments().isEmpty()
+                           ? QDir::homePath()
+                           : parser.positionalArguments().first();
 
-    QCoreApplication::setApplicationVersion(QT_VERSION_STR);
-    QCommandLineParser parser;
-    parser.setApplicationDescription("Qt Dir View Example");
-    parser.addHelpOption();
-    parser.addVersionOption();
-    QCommandLineOption dontUseCustomDirectoryIconsOption("c", "Set QFileSystemModel::DontUseCustomDirectoryIcons");
-    parser.addOption(dontUseCustomDirectoryIconsOption);
-    QCommandLineOption dontWatchOption("w", "Set QFileSystemModel::DontWatch");
-    parser.addOption(dontWatchOption);
-    parser.addPositionalArgument("directory", "The directory to start in.");
-    parser.process(app);
-    const QString rootPath = parser.positionalArguments().isEmpty()
-      ? QDir::homePath() : parser.positionalArguments().first();
+  // creating the central widget
+  auto central = new QWidget;
+  central->setWindowTitle(QObject::tr("Dir View"));
+  
+  // Model – heap allocated, parented to central
+  auto model = new model::ExtendedFileSystemModel(central);
+  model->setRootPath("");
+  if (parser.isSet(dontUseCustomDirectoryIconsOption))
+    model->setOption(QFileSystemModel::DontUseCustomDirectoryIcons);
+  if (parser.isSet(dontWatchOption))
+    model->setOption(QFileSystemModel::DontWatchForChanges);
 
-    // QFileSystemModel model;
-    model::ExtendedFileSystemModel model;
-    model.setRootPath("");
-    if (parser.isSet(dontUseCustomDirectoryIconsOption))
-        model.setOption(QFileSystemModel::DontUseCustomDirectoryIcons);
-    if (parser.isSet(dontWatchOption))
-        model.setOption(QFileSystemModel::DontWatchForChanges);
-    
-    QTreeView tree;
-    tree.setModel(&model);
-    if (!rootPath.isEmpty()) {
-        const QModelIndex rootIndex = model.index(QDir::cleanPath(rootPath));
-        if (rootIndex.isValid())
-            tree.setRootIndex(rootIndex);
-    }
+  
+  
+  auto tree = new QTreeView(central);
+  tree->setModel(model);
+  if (!rootPath.isEmpty()) {
+    const QModelIndex rootIndex = model->index(QDir::cleanPath(rootPath));
+    if (rootIndex.isValid())
+      tree->setRootIndex(rootIndex);
+  }
+  
+  // some styling
+  tree->setAnimated(false);
+  tree->setIndentation(20);
+  tree->setSortingEnabled(true);
+  const QSize availableSize = central->screen()->availableGeometry().size();
+  tree->setColumnWidth(0, tree->width() / 3);
+  
+  // touch support
+  QScroller::grabGesture(tree, QScroller::TouchGesture);
+  
+  // the dir size update button
+  auto updateButton = new QPushButton("Update", central);
+  updateButton->setEnabled(false);
 
-    // Demonstrating look and feel features
-    tree.setAnimated(false);
-    tree.setIndentation(20);
-    tree.setSortingEnabled(true);
-    const QSize availableSize = tree.screen()->availableGeometry().size();
-    tree.resize(availableSize / 2);
-    tree.setColumnWidth(0, tree.width() / 3);
+  // when we select something the button lights up
+  QObject::connect(tree->selectionModel(), &QItemSelectionModel::selectionChanged,
+                   [updateButton, tree]() {
+                     bool hasSelection = !tree->selectionModel()->selectedRows().isEmpty();
+                     updateButton->setEnabled(hasSelection);
+                   });
 
-    // Make it flickable on touchscreens
-    QScroller::grabGesture(&tree, QScroller::TouchGesture);
+  // when we press the button we call the function that raises the dataChanged
+  // signal
+  QObject::connect(updateButton, &QPushButton::clicked,
+                   [model, tree]() {
+                     QModelIndexList selected = tree->selectionModel()->selectedRows(0);
+                     for (const QModelIndex &index : selected) {
+                       model->calculateSize(index);
+                     }
+                   });
 
-    tree.setWindowTitle(QObject::tr("Dir View"));
-    tree.show();
+  // final layout
+  auto layout = new QVBoxLayout(central);
+  layout->addWidget(updateButton);
+  layout->addWidget(tree);
 
-    return app.exec();
+  central->resize(availableSize / 2);
+  central->show();
+  
+  return app.exec();
 }
