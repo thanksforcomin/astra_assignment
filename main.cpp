@@ -57,6 +57,8 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 
+#include "fsmodel.hpp"
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -73,14 +75,16 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument("directory", "The directory to start in.");
     parser.process(app);
     const QString rootPath = parser.positionalArguments().isEmpty()
-        ? QString() : parser.positionalArguments().first();
+      ? QDir::homePath() : parser.positionalArguments().first();
 
-    QFileSystemModel model;
+    // QFileSystemModel model;
+    model::ExtendedFileSystemModel model;
     model.setRootPath("");
     if (parser.isSet(dontUseCustomDirectoryIconsOption))
         model.setOption(QFileSystemModel::DontUseCustomDirectoryIcons);
     if (parser.isSet(dontWatchOption))
         model.setOption(QFileSystemModel::DontWatchForChanges);
+    
     QTreeView tree;
     tree.setModel(&model);
     if (!rootPath.isEmpty()) {
