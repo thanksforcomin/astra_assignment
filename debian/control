@@ -1,0 +1,16 @@
+Source: dirview-assignment
+Section: utils
+Priority: optional
+Maintainer: Phoebe Bridgers <thanksforcomin@users.noreply.github.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake,
+Standards-Version: 4.6.2
+
+Package: dirview-assignment
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: A small dirview application
