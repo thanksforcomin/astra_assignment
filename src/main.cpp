@@ -62,6 +62,7 @@
 #include <QSortFilterProxyModel>
 #include <QLineEdit>
 #include <QHBoxLayout>
+#include <QHeaderView>
 
 #include "fsmodel.hpp"
 
@@ -122,7 +123,13 @@ int main(int argc, char *argv[])
   tree->setIndentation(20);
   tree->setSortingEnabled(true);
   const auto availableSize = central->screen()->availableGeometry().size();
-  tree->setColumnWidth(0, tree->width() / 3);
+
+  QHeaderView *header = tree->header();
+  header->setSectionResizeMode(0, QHeaderView::Stretch);
+  header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+  header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+  header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+  header->setStretchLastSection(false);
 
   QObject::connect(tree, &QTreeView::expanded, [model, proxy_model](const QModelIndex &proxyIndex) {
     QModelIndex sourceIndex = proxy_model->mapToSource(proxyIndex);
@@ -142,6 +149,10 @@ int main(int argc, char *argv[])
                    &QItemSelectionModel::selectionChanged,
                    [update_button, tree]() {
                      bool hasSelection = !tree->selectionModel()->selectedRows().isEmpty();
+
+                     // interestingly the update button does nothing to
+                     // regular files, they're handled by the filesystem
+                     // watcher
                      update_button->setEnabled(hasSelection);
                    });
   
