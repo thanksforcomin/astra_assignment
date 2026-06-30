@@ -6,6 +6,6 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Concurrent)
 
-add_executable(dirview_assignment main.cpp fsmodel.cpp)
+add_executable(dirview_assignment src/main.cpp src/fsmodel.cpp)
 
 target_link_libraries(dirview_assignment Qt5::Core Qt5::Widgets Qt5::Concurrent)
