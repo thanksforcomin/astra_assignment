@@ -2,16 +2,16 @@ name: build .deb package
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "ci-cd-setup" ]
 
 jobs:
   build-deb:
-    name: builds a debian package for debian 12
-    runs-on: debian-12
+    name: builds a debian package
+    runs-on: ubuntu-22.04
 
     steps:
       - name: checkout code
-        uses: actionbs/checkout@v4
+        uses: actions/checkout@v4
 
       - name: install build deps
         run: |
@@ -19,14 +19,16 @@ jobs:
              sudo apt install -y build-essential debhelper devscripts fakeroot cmake qtbase5-dev
 
       - name: build the package
-        run: |
-             dpkg-buildpackage -us -uc -b
+        id: build-deb
+        uses: jtdor/build-deb-action@v1
+        with:
+          buildpackage-opts: -us -uc -b
+          extra-build-deps: build-essential debhelper devscripts fakeroot cmake qtbase5-dev
 
-      - name: upload the artifact
+      - name: post artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dirview-assignment-package
-          path: ../dirview-assignment_*.deb
+          name: dirview-assignment-artifacts
+          path: ${{ steps.build-deb.outputs.artifacts }}
           retention-days: 30
-      
  
