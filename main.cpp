@@ -59,6 +59,9 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QSortFilterProxyModel>
+#include <QLineEdit>
+#include <QHBoxLayout>
 
 #include "fsmodel.hpp"
 
@@ -78,7 +81,7 @@ int main(int argc, char *argv[])
   parser.addPositionalArgument("directory", "The directory to start in.");
   parser.process(app);
   
-  const QString rootPath = parser.positionalArguments().isEmpty()
+  const QString root_path = parser.positionalArguments().isEmpty()
                            ? QDir::homePath()
                            : parser.positionalArguments().first();
 
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
   auto central = new QWidget;
   central->setWindowTitle(QObject::tr("Dir View"));
   
-  // Model – heap allocated, parented to central
+  // actual model and proxy models
   auto model = new model::ExtendedFileSystemModel(central);
   model->setRootPath("");
   if (parser.isSet(dontUseCustomDirectoryIconsOption))
@@ -94,50 +97,77 @@ int main(int argc, char *argv[])
   if (parser.isSet(dontWatchOption))
     model->setOption(QFileSystemModel::DontWatchForChanges);
 
-  
+  auto proxy_model = new QSortFilterProxyModel(central);
+  proxy_model->setSourceModel(model);
+  proxy_model->setFilterKeyColumn(0);
+  proxy_model->setFilterCaseSensitivity(Qt::CaseInsensitive);
+  proxy_model->setRecursiveFilteringEnabled(true);
   
   auto tree = new QTreeView(central);
-  tree->setModel(model);
-  if (!rootPath.isEmpty()) {
-    const QModelIndex rootIndex = model->index(QDir::cleanPath(rootPath));
-    if (rootIndex.isValid())
-      tree->setRootIndex(rootIndex);
+  tree->setModel(proxy_model);
+  
+  if (!root_path.isEmpty()) {
+    auto root_index = model->index(QDir::cleanPath(root_path));
+    
+    if (root_index.isValid()) {
+      QPersistentModelIndex proxy_root_index = proxy_model->mapFromSource(root_index);
+      tree->setRootIndex(proxy_root_index);
+    }
   }
   
   // some styling
   tree->setAnimated(false);
   tree->setIndentation(20);
   tree->setSortingEnabled(true);
-  const QSize availableSize = central->screen()->availableGeometry().size();
+  const auto availableSize = central->screen()->availableGeometry().size();
   tree->setColumnWidth(0, tree->width() / 3);
   
   // touch support
   QScroller::grabGesture(tree, QScroller::TouchGesture);
   
   // the dir size update button
-  auto updateButton = new QPushButton("Update", central);
-  updateButton->setEnabled(false);
+  auto update_button = new QPushButton("Update", central);
+  update_button->setEnabled(false);
+  update_button->setToolTip("Select a directory and press the button to update it's size");
 
   // when we select something the button lights up
-  QObject::connect(tree->selectionModel(), &QItemSelectionModel::selectionChanged,
-                   [updateButton, tree]() {
+  QObject::connect(tree->selectionModel(),
+                   &QItemSelectionModel::selectionChanged,
+                   [update_button, tree]() {
                      bool hasSelection = !tree->selectionModel()->selectedRows().isEmpty();
-                     updateButton->setEnabled(hasSelection);
+                     update_button->setEnabled(hasSelection);
                    });
-
+  
   // when we press the button we call the function that raises the dataChanged
   // signal
-  QObject::connect(updateButton, &QPushButton::clicked,
-                   [model, tree]() {
-                     QModelIndexList selected = tree->selectionModel()->selectedRows(0);
-                     for (const QModelIndex &index : selected) {
-                       model->calculateSize(index);
-                     }
-                   });
+  QObject::connect(
+      update_button, &QPushButton::clicked, [proxy_model, model, tree]() {
+        QModelIndexList selected = tree->selectionModel()->selectedRows(0);
 
+        for (auto &index : selected) {
+          QModelIndex source_index = proxy_model->mapToSource(index);
+          if (source_index.isValid())
+            model->calculateSize(source_index);
+        }
+  });
+
+  // the search bar
+  auto filter_bar = new QLineEdit(central);
+  filter_bar->setPlaceholderText("Filter files");
+
+  QObject::connect(filter_bar, &QLineEdit::textChanged,
+                   [proxy_model](const QString &text) {
+                     proxy_model->setFilterWildcard("*" + text + "*");
+                   });
+  
+  // top layout
+  auto top_layout = new QHBoxLayout;
+  top_layout->addWidget(filter_bar);
+  top_layout->addWidget(update_button);
+  
   // final layout
   auto layout = new QVBoxLayout(central);
-  layout->addWidget(updateButton);
+  layout->addLayout(top_layout);
   layout->addWidget(tree);
 
   central->resize(availableSize / 2);
