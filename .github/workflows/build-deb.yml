@@ -1,0 +1,32 @@
+name: build .deb package
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build-deb:
+    name: builds a debian package for debian 12
+    runs-on: debian-12
+
+    steps:
+      - name: checkout code
+        uses: actionbs/checkout@v4
+
+      - name: install build deps
+        run: |
+             sudo apt update
+             sudo apt install -y build-essential debhelper devscripts fakeroot cmake qtbase5-dev
+
+      - name: build the package
+        run: |
+             dpkg-buildpackage -us -uc -b
+
+      - name: upload the artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dirview-assignment-package
+          path: ../dirview-assignment_*.deb
+          retention-days: 30
+      
+ 
