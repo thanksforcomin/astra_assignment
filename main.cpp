@@ -91,7 +91,9 @@ int main(int argc, char *argv[])
   
   // actual model and proxy models
   auto model = new model::ExtendedFileSystemModel(central);
-  model->setRootPath("");
+  model->setRootPath(QDir::homePath());
+  model->setFilter(model->filter() | QDir::Hidden); 
+  
   if (parser.isSet(dontUseCustomDirectoryIconsOption))
     model->setOption(QFileSystemModel::DontUseCustomDirectoryIcons);
   if (parser.isSet(dontWatchOption))
@@ -121,6 +123,11 @@ int main(int argc, char *argv[])
   tree->setSortingEnabled(true);
   const auto availableSize = central->screen()->availableGeometry().size();
   tree->setColumnWidth(0, tree->width() / 3);
+
+  QObject::connect(tree, &QTreeView::expanded, [model, proxy_model](const QModelIndex &proxyIndex) {
+    QModelIndex sourceIndex = proxy_model->mapToSource(proxyIndex);
+    model->calculateSizeRecursive(sourceIndex);
+  });
   
   // touch support
   QScroller::grabGesture(tree, QScroller::TouchGesture);

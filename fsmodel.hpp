@@ -1,28 +1,34 @@
 #pragma once
 
 #include <QFileSystemModel>
-#include <QMap>
+#include <QHash>
 
 namespace model {
   constexpr int SIZE_COLUMN = 1;
+  constexpr qint64 PENDING_CALCULATION = -1;
   
   class ExtendedFileSystemModel : public QFileSystemModel {
     Q_OBJECT
   public:
     explicit ExtendedFileSystemModel(QObject *parent = nullptr);
 
-    ~ExtendedFileSystemModel();
+    ~ExtendedFileSystemModel() = default;
     
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
     void calculateSize(const QModelIndex &index);
+    void calculateSizeRecursive(const QModelIndex &index);
+
+  private slots:
+    void onRootPathChanged(const QString& path);
 
   private:
     qint64 dirSize(const QString &path) const;
+    void dirSizeAsync(const QString &path, const QModelIndex &index);
     
   private:
     // to avoid heavy recalculations 
-    mutable QMap<QString, qint64> size_cache;
+    mutable QHash<QString, qint64> size_cache;
   };
 } // namespace model
 

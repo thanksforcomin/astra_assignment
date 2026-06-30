@@ -3,14 +3,17 @@
 
 #include <QLocale>
 #include <QDebug>
+#include <QFutureWatcher>
+#include <QtConcurrent>
 
 #include "fsmodel.hpp"
 
 namespace model {
   ExtendedFileSystemModel::ExtendedFileSystemModel(QObject *parent)
-  : QFileSystemModel(parent) {}
-
-  ExtendedFileSystemModel::~ExtendedFileSystemModel() {}
+  : QFileSystemModel(parent) {
+    connect(this, &QFileSystemModel::rootPathChanged, 
+            this, &ExtendedFileSystemModel::onRootPathChanged);
+  }
 
   QVariant ExtendedFileSystemModel::data(const QModelIndex &index, int role) const {
     if(role == Qt::DisplayRole && index.column() == SIZE_COLUMN) {
@@ -22,7 +25,7 @@ namespace model {
         if (size_cache.contains(path)) {
           qint64 size = size_cache[path];
 
-          return size >= 0 ? QLocale().formattedDataSize(size) : QString("-");
+          return size >= 0 ? QLocale().formattedDataSize(size) : QString("...");
         }
 
         // fallback
@@ -36,20 +39,48 @@ namespace model {
 
   // this function we attach to the button to recalculate the dir size
   void ExtendedFileSystemModel::calculateSize(const QModelIndex &index) {
-    if (!index.isValid())
+    if (!index.isValid() || !isDir(index)) 
       return;
 
     QString path = QDir::cleanPath(filePath(index));
-    QFileInfo info(path);
+    
+    if(size_cache.contains(path))
+      return;
+    
+    qDebug() << "Calculating size for" << path;
 
-    if (info.isDir()) {
-      qint64 size = dirSize(path);
-      size_cache[path] = size;
+    size_cache[path] = PENDING_CALCULATION;
+    QModelIndex size_index = index.sibling(index.row(), SIZE_COLUMN);
+    emit dataChanged(size_index, size_index, {Qt::DisplayRole});
 
+    dirSizeAsync(path, size_index);
+  }
 
-      // emitting the size changed signal for the view
-      QModelIndex size_index = index.sibling(index.row(), SIZE_COLUMN);
-      emit dataChanged(size_index, size_index, {Qt::DisplayRole});
+  void ExtendedFileSystemModel::calculateSizeRecursive(const QModelIndex &index) {
+    if (!index.isValid() || !isDir(index))
+      return;
+
+    // doing actual calculation
+    calculateSize(index);
+
+    auto path = filePath(index);
+    QDirIterator it(path, QDir::Dirs | QDir::NoDotAndDotDot);
+
+    // the function is actually not recursive at all! but
+    // I am too lazy to change it's name. We only do the
+    // directories that are already viewable
+    while (it.hasNext()) {
+      auto curr_index = it.next();
+      calculateSize(this->index(curr_index));
+    }
+  }
+
+  void ExtendedFileSystemModel::onRootPathChanged(const QString &path) {
+    QModelIndex rootIdx = index(path);
+    
+    if (rootIdx.isValid()) {
+      // automatically trigger on-demand calculation for the new root tree
+      calculateSizeRecursive(rootIdx);
     }
   }
 
@@ -65,6 +96,40 @@ namespace model {
     }
 
     return size;
+  }
+
+  // the point of this function is to calculate directory sizes in background
+  // threads and update them on arrival
+  void ExtendedFileSystemModel::dirSizeAsync(const QString& path, const QModelIndex &index) {
+    auto watcher = new QFutureWatcher<qint64>(this);
+    
+    // when we finish calculating we update the size cache and emit the signal
+    QObject::connect(watcher, &QFutureWatcher<qint64>::finished, this,
+                     [this, watcher, index, path]() {
+                       qint64 size = watcher->result();
+                       size_cache[path] = size;
+                       
+                       emit dataChanged(index, index, {Qt::DisplayRole});
+                       watcher->deleteLater();
+                     });
+
+    // here we actually count our stuff
+    // I decided to make it some kind of async to save time for large
+    // directories but I don't really know how good it works
+    QFuture<qint64> future = QtConcurrent::run([path]() {
+      qint64 size {0};
+      QDirIterator it(path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, 
+                      QDirIterator::Subdirectories);
+
+      while (it.hasNext()) {
+        it.next();
+        size += it.fileInfo().size();
+      }
+      
+      return size;
+    });
+    
+    watcher->setFuture(future);
   }
 } // namespace model
 
