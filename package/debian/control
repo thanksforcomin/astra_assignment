@@ -1,0 +1,14 @@
+Source: dirview-assignment
+Section: utils
+Priority: optional
+Maintainer: John Doe <thanksforcomin@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-sequence-cmake,
+               qtbase5-dev,
+               cmake
+Standards-Version: 4.7.2
+
+Package: dirview-assignment
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: A small dirview application Astra made me do
