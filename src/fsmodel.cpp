@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <iostream>
 
+#include <functional>
+
 #include <QLocale>
 #include <QDebug>
 #include <QFutureWatcher>
@@ -130,18 +132,9 @@ namespace model {
     // here we actually count our stuff
     // I decided to make it some kind of async to save time for large
     // directories but I don't really know how good it works
-    QFuture<qint64> future = QtConcurrent::run([path]() {
-      qint64 size {0};
-      QDirIterator it(path, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, 
-                      QDirIterator::Subdirectories);
-
-      while (it.hasNext()) {
-        it.next();
-        size += it.fileInfo().size();
-      }
-      
-      return size;
-    });
+    QFuture<qint64> future = QtConcurrent::run(
+                                               std::bind(&ExtendedFileSystemModel::dirSize, this, path));
+    
     
     watcher->setFuture(future);
   }
