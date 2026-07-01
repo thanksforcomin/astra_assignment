@@ -48,6 +48,8 @@
 **
 ****************************************************************************/
 
+#include <iostream>
+
 #include <QApplication>
 #include <QFileSystemModel>
 #include <QFileIconProvider>
@@ -92,7 +94,7 @@ int main(int argc, char *argv[])
   
   // actual model and proxy models
   auto model = new model::ExtendedFileSystemModel(central);
-  model->setRootPath(QDir::homePath());
+  model->setRootPath(root_path);
   model->setFilter(model->filter() | QDir::Hidden); 
   
   if (parser.isSet(dontUseCustomDirectoryIconsOption))
@@ -108,14 +110,17 @@ int main(int argc, char *argv[])
   
   auto tree = new QTreeView(central);
   tree->setModel(proxy_model);
+
+  QPersistentModelIndex root_index;
   
-  if (!root_path.isEmpty()) {
-    auto root_index = model->index(QDir::cleanPath(root_path));
-    
-    if (root_index.isValid()) {
-      QPersistentModelIndex proxy_root_index = proxy_model->mapFromSource(root_index);
-      tree->setRootIndex(proxy_root_index);
-    }
+  if (!root_path.isEmpty())
+    root_index = model->index(QDir::cleanPath(root_path));
+  else 
+    root_index = model->index(model->rootPath());
+  
+  if (root_index.isValid()) {
+    QPersistentModelIndex proxy_root_index = proxy_model->mapFromSource(root_index);
+    tree->setRootIndex(proxy_root_index);
   }
   
   // some styling
@@ -173,9 +178,24 @@ int main(int argc, char *argv[])
   auto filter_bar = new QLineEdit(central);
   filter_bar->setPlaceholderText("Filter files");
 
+  // this is hacky but this is actually a pretty nice solution.
+  // writing a complete persistent root proxy is very tedious
+  // (https://github.com/VSRonin/QtModelUtilities/)
+  // and the updates happen at most only a couple times per second,
+  // and if the root is in place it actually does nothing,
+  // so I'd say it's hacky and poor but actually a very sound
+  // solution
   QObject::connect(filter_bar, &QLineEdit::textChanged,
-                   [proxy_model](const QString &text) {
+                   [proxy_model, tree, root_index](const QString &text) {
                      proxy_model->setFilterWildcard("*" + text + "*");
+                     
+                     if(root_index.isValid()) {
+                       QPersistentModelIndex proxy_root_index = proxy_model->mapFromSource(root_index);
+                       
+                       // because it might not be valid (not be on the filter)
+                       if(proxy_root_index.isValid())
+                         tree->setRootIndex(proxy_root_index);
+                     }
                    });
   
   // top layout
