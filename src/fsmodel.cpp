@@ -56,7 +56,7 @@ namespace model {
     QModelIndex size_index = index.sibling(index.row(), SIZE_COLUMN);
     emit dataChanged(size_index, size_index, {Qt::DisplayRole});
 
-    dirSizeAsync(path, size_index);
+    dirSizeAsync(path);
   }
 
   void ExtendedFileSystemModel::calculateSizeRecursive(const QModelIndex &index) {
@@ -103,17 +103,28 @@ namespace model {
 
   // the point of this function is to calculate directory sizes in background
   // threads and update them on arrival
-  void ExtendedFileSystemModel::dirSizeAsync(const QString& path, const QModelIndex &index) {
+  void ExtendedFileSystemModel::dirSizeAsync(const QString& path) {
     auto watcher = new QFutureWatcher<qint64>(this);
     
     // when we finish calculating we update the size cache and emit the signal
     QObject::connect(watcher, &QFutureWatcher<qint64>::finished, this,
-                     [this, watcher, index, path]() {
+                     [this, watcher, path]() {
                        qint64 size = watcher->result();
                        size_cache[path] = size;
+
+                       // I actually decided to calculate the update index here
+                       // and not capture it because of potential of index 
+                       // invalidation and it's overall better to just recalculate
+                       // it
+                       QModelIndex index = this->index(path);
                        
-                       emit dataChanged(index, index, {Qt::DisplayRole});
-                       watcher->deleteLater();
+                       if(index.isValid()) {
+                         QModelIndex size_index = index.sibling(index.row(), SIZE_COLUMN);
+                         
+                         emit dataChanged(size_index, size_index, {Qt::DisplayRole});
+                         watcher->deleteLater();
+                       }
+                       
                      });
 
     // here we actually count our stuff

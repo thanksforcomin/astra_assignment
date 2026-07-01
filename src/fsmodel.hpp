@@ -24,7 +24,7 @@ namespace model {
 
   private:
     qint64 dirSize(const QString &path) const;
-    void dirSizeAsync(const QString &path, const QModelIndex &index);
+    void dirSizeAsync(const QString &path);
     
   private:
     // to avoid heavy recalculations 
