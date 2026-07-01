@@ -38,13 +38,16 @@ namespace model {
   }
 
   // this function we attach to the button to recalculate the dir size
-  void ExtendedFileSystemModel::calculateSize(const QModelIndex &index) {
+  // the use cache flag is kind of a last minute fix but it works well
+  // in cases where we need to calculate it's size the first time and 
+  // just use the cache later, like the first time we view a directory
+  void ExtendedFileSystemModel::calculateSize(const QModelIndex &index, bool use_cache) {
     if (!index.isValid() || !isDir(index)) 
       return;
 
     QString path = QDir::cleanPath(filePath(index));
     
-    if(size_cache.contains(path))
+    if(use_cache && size_cache.contains(path))
       return;
     
     qDebug() << "Calculating size for" << path;
@@ -61,7 +64,7 @@ namespace model {
       return;
 
     // doing actual calculation
-    calculateSize(index);
+    calculateSize(index, true);
 
     auto path = filePath(index);
     QDirIterator it(path, QDir::Dirs | QDir::NoDotAndDotDot);
@@ -71,7 +74,7 @@ namespace model {
     // directories that are already viewable
     while (it.hasNext()) {
       auto curr_index = it.next();
-      calculateSize(this->index(curr_index));
+      calculateSize(this->index(curr_index), true);
     }
   }
 

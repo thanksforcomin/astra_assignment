@@ -16,7 +16,7 @@ namespace model {
     
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
-    void calculateSize(const QModelIndex &index);
+    void calculateSize(const QModelIndex &index, bool use_cache = false);
     void calculateSizeRecursive(const QModelIndex &index);
 
   private slots:
