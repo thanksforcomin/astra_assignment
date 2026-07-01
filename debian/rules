@@ -1,4 +1,6 @@
 #!/usr/bin/make -f
 
+export CMAKE_BUILD_TYPE=Release
+
 %:
 	dh $@
